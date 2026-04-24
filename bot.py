@@ -5,30 +5,27 @@ from logic import *
 import speech_recognition as sr
 from pydub import AudioSegment
 import os 
-import time
+
 bot = telebot.TeleBot(TOKEN)
 init_db()
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 OGG_PATH = "voice.ogg"
 WAV_PATH = "voice.wav"
+BACK_TO_FAQ_TEXT = "<-- Вернуться к вопросам"
 
 
 def faq_keyboard():
     """Меню с вопросами FAQ."""
-    markup = types.ReplyKeyboardMarkup(row_width=1)
+    markup = types.ReplyKeyboardMarkup(row_width=1, resize_keyboard=True)
     for qid, data in FAQ.items():
-        markup.add(types.KeyboardButton(
-            text=f" {data['question']}",
-            callback_data=f"faq_{qid}",
-        ))
+        markup.add(types.KeyboardButton(text=data["question"]))
     return markup
  
  
 def back_keyboard():
     """Кнопка «Назад» к меню."""
-    markup = types.ReplyKeyboardMarkup(row_width=1)
-    markup.add(types.KeyboardButton("<-- Вернуться к вопросам"))
+    markup = types.ReplyKeyboardMarkup(row_width=1, resize_keyboard=True)
+    markup.add(types.KeyboardButton(BACK_TO_FAQ_TEXT))
     return markup
 
 @bot.message_handler(commands=["start"])
@@ -62,37 +59,6 @@ def cmd_help(message):
         parse_mode="Markdown",
         reply_markup=faq_keyboard(),
     )
-
-@bot.callback_query_handler(func=lambda call: call.data.startswith("faq_"))
-def handle_faq_callback(call):
-    qid = int(call.data.split("_")[1])
-    answer = get_answer(qid)
- 
-    if not answer:
-        bot.answer_callback_query(call.id, "Ответ не найден ")
-        return
-    question_text = FAQ[qid]["question"]
-    log_request(call.from_user.id, "faq", question_id=qid, raw_text=question_text)
-    bot.edit_message_text(
-        chat_id=call.message.chat.id,
-        message_id=call.message.message_id,
-        text=f" *{question_text}*\n\n{answer}",
-        parse_mode="Markdown",
-        reply_markup=back_keyboard(),
-    )
-    bot.answer_callback_query(call.id)
- 
- 
-@bot.callback_query_handler(func=lambda call: call.data == "back_to_menu")
-def handle_back(call):
-    bot.edit_message_text(
-        chat_id=call.message.chat.id,
-        message_id=call.message.message_id,
-        text="📋 Выберите вопрос:",
-        reply_markup=faq_keyboard(),
-    )
-    bot.answer_callback_query(call.id)
-
 
 @bot.message_handler(content_types=['voice'])
 def handle_voice(message):
@@ -143,6 +109,33 @@ def handle_voice(message):
 def handle_text(message):
     text = message.text.strip()
     add_user(message.from_user.id, message.from_user.full_name)
+
+    if text == BACK_TO_FAQ_TEXT:
+        bot.send_message(
+            message.chat.id,
+            "📋 Выберите вопрос:",
+            reply_markup=faq_keyboard(),
+        )
+        return
+
+    selected_question_id = _find_faq_button_press(text)
+    if selected_question_id:
+        answer = get_answer(selected_question_id)
+        question_text = FAQ[selected_question_id]["question"]
+        log_request(
+            message.from_user.id,
+            "faq",
+            question_id=selected_question_id,
+            raw_text=question_text,
+        )
+        bot.send_message(
+            message.chat.id,
+            f"*{question_text}*\n\n{answer}",
+            parse_mode="Markdown",
+            reply_markup=back_keyboard(),
+        )
+        return
+
     matched_id = _find_matching_faq(text)
     if matched_id:
         answer = get_answer(matched_id)
@@ -160,6 +153,14 @@ def handle_text(message):
             "Спасибо за ваше сообщение! Я передал его оператору, и он свяжется с вами в ближайшее время.",
             reply_markup=faq_keyboard(),
         )        
+
+def _find_faq_button_press(text: str) -> int | None:
+    stripped_text = text.strip()
+    for qid, data in FAQ.items():
+        if stripped_text == data["question"]:
+            return qid
+    return None
+
 
 def _find_matching_faq(text: str) -> int | None:
     text_lower = text.lower()
