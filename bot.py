@@ -9,35 +9,26 @@ import time
 bot = telebot.TeleBot(TOKEN)
 init_db()
 
-FFMPEG_PATH = r"C:/ffmpeg-8.0.1-essentials_build/bin"
-AudioSegment.converter = os.path.join(FFMPEG_PATH, "ffmpeg.exe")
-AudioSegment.ffprobe = os.path.join(FFMPEG_PATH, "ffprobe.exe")
-
-if os.path.exists(FFMPEG_PATH):
-    AudioSegment.converter = FFMPEG_PATH
-else:
-    raise FileNotFoundError(f"ffmpeg не найден по пути: {FFMPEG_PATH}")
-
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-OGG_PATH = os.path.join(BASE_DIR, "voice.ogg")
-WAV_PATH = os.path.join(BASE_DIR, "voice.wav")
+OGG_PATH = "voice.ogg"
+WAV_PATH = "voice.wav"
 
 
-def faq_keyboard() -> types.InlineKeyboardMarkup:
+def faq_keyboard():
     """Меню с вопросами FAQ."""
-    markup = types.InlineKeyboardMarkup(row_width=1)
+    markup = types.ReplyKeyboardMarkup(row_width=1)
     for qid, data in FAQ.items():
-        markup.add(types.InlineKeyboardButton(
+        markup.add(types.KeyboardButton(
             text=f" {data['question']}",
             callback_data=f"faq_{qid}",
         ))
     return markup
  
  
-def back_keyboard() -> types.InlineKeyboardMarkup:
+def back_keyboard():
     """Кнопка «Назад» к меню."""
-    markup = types.InlineKeyboardMarkup()
-    markup.add(types.InlineKeyboardButton("<-- Вернуться к вопросам", callback_data="back_to_menu"))
+    markup = types.ReplyKeyboardMarkup(row_width=1)
+    markup.add(types.KeyboardButton("<-- Вернуться к вопросам"))
     return markup
 
 @bot.message_handler(commands=["start"])
